@@ -1,0 +1,10 @@
+*.vcf
+*.vcf.gz
+*.fa
+*.fai
+*.tsv
+data/
+checkpoints/
+*.ckpt
+*.safetensors
+wandb/
