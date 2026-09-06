@@ -8,3 +8,11 @@ checkpoints/
 *.ckpt
 *.safetensors
 wandb/
+results/runs/*/history.json
+results/runs/*/top.json
+results/runs/*/val_logits_top3.npz
+results/runs/*/val_logits.npz
+results/runs/*/val_logits_step0.npz
+results/runs/shared/*
+!results/runs/*/
+!results/runs/*/metrics.json

@@ -1,0 +1,20 @@
+{
+  "auc": 0.7548688993218571,
+  "step": 950,
+  "path": "/kaggle/working/runs/siamese_lpft_n4096_seed0/ck_950.pt",
+  "mcc": 0.4916218829113297,
+  "thr": 0.7574710249900818,
+  "peak_gb": 10.333859920501709,
+  "train_min": 13.109696871633309,
+  "wall_min": 21.271259010500003,
+  "steps_run": 1000,
+  "ms_per_step": 786.5818122979986,
+  "params_backbone": 116477952,
+  "params_head": 198914,
+  "lr_bb": 2e-05,
+  "lr_head": 0.0001,
+  "regime": "lpft_full",
+  "subset_fp": "5f80a1a0c0a87af4",
+  "gate": 0.7094,
+  "gate_sd": 0.0034
+}
