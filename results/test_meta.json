@@ -1,0 +1,19 @@
+{
+  "n": 48328,
+  "pos": 9284,
+  "thr_full": 0.7714582085609436,
+  "thr_lora": 0.7515917420387268,
+  "step_full": 3200,
+  "step_lora": 3000,
+  "seq_per_s": {
+    "probe": 211.5157072002183,
+    "full": 211.27300655235703,
+    "lora": 158.13134067270266
+  },
+  "peak_gb": {
+    "probe": 2.1309828758239746,
+    "full": 2.1309828758239746,
+    "lora": 2.0814361572265625
+  },
+  "note": "thresholds frozen from validation at 17.4% prevalence; never re-tuned on test"
+}

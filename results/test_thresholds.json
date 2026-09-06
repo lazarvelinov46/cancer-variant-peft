@@ -1,0 +1,10 @@
+{
+  "thr": {
+    "full": 0.7714582085609436,
+    "lora": 0.7515917420387268,
+    "probe": 0.7210984826087952,
+    "rule": 2.0
+  },
+  "composite": "2*tier + p_full (pre-commitment \u00a72 S5)",
+  "policy": "pre-commitment \u00a73 \u2014 validation max-MCC at 17.4% prevalence, from each run's metrics.json; never re-tuned"
+}

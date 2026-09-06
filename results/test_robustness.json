@@ -1,0 +1,94 @@
+{
+  "post_test": true,
+  "n_boot": 1000,
+  "n_genes": 40,
+  "clustered_ci": {
+    "comp_gain_auc": {
+      "point": 0.015865256482583412,
+      "lo": 0.010964020459258891,
+      "hi": 0.020187310072332314,
+      "excludes_zero": true,
+      "n_boot": 1000
+    },
+    "comp_gain_auprc": {
+      "point": 0.04283350346395354,
+      "lo": 0.034177155242718416,
+      "hi": 0.052799754197317146,
+      "excludes_zero": true,
+      "n_boot": 1000
+    },
+    "mis_full_probe": {
+      "point": 0.03201053503787887,
+      "lo": -0.03069889017946755,
+      "hi": 0.09075991994858928,
+      "excludes_zero": false,
+      "n_boot": 1000
+    },
+    "mis_lora_full": {
+      "point": -0.019410861096763155,
+      "lo": -0.03738214650581999,
+      "hi": 0.004449461146292167,
+      "excludes_zero": false,
+      "n_boot": 1000
+    },
+    "lof_lora_full": {
+      "point": 0.02030430914249992,
+      "lo": -0.04251268300971608,
+      "hi": 0.06692158170944912,
+      "excludes_zero": false,
+      "n_boot": 1000
+    },
+    "dod": {
+      "point": -0.039715170239263076,
+      "lo": -0.08916100769577837,
+      "hi": 0.028315400310846967,
+      "excludes_zero": false,
+      "n_boot": 1000
+    },
+    "overall_lora_full": {
+      "point": 0.023491461273422276,
+      "lo": -0.0033594006095904404,
+      "hi": 0.052332211277440026,
+      "excludes_zero": false,
+      "n_boot": 1000
+    }
+  },
+  "decomposition": {
+    "rule": {
+      "pooled": 0.9700258131867797,
+      "within": 0.970437378158181,
+      "between": 0.9700098652188994,
+      "genes_used": 38
+    },
+    "probe": {
+      "pooled": 0.8089858759090209,
+      "within": 0.8316952793651124,
+      "between": 0.8081058961681176,
+      "genes_used": 38
+    },
+    "full": {
+      "pooled": 0.8358884141075098,
+      "within": 0.8380523338645361,
+      "between": 0.8358045631357833,
+      "genes_used": 38
+    },
+    "lora": {
+      "pooled": 0.8593798753809321,
+      "within": 0.8736876987619492,
+      "between": 0.8588254533004023,
+      "genes_used": 38
+    },
+    "composite": {
+      "pooled": 0.9858910696693631,
+      "within": 0.9871938937489421,
+      "between": 0.9858405857894934,
+      "genes_used": 38
+    }
+  },
+  "per_gene_missense": {
+    "n_genes": 31,
+    "full_gt_probe": 22,
+    "sign_test_p": 0.029449373483657837,
+    "median_lift": 0.04543191436395322
+  }
+}
