@@ -3,7 +3,7 @@
 *.fa
 *.fai
 *.tsv
-data/
+data/*
 !data/dataset_card_v2.json
 !data/gene_splits_v2.csv
 checkpoints/

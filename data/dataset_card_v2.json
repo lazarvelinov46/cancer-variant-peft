@@ -1,0 +1,107 @@
+{
+  "name": "cancer-variant-peft \u2014 processed windows (Phase 2 output)",
+  "research_question": "Does PEFT (LoRA/QLoRA) match full fine-tuning of DNABERT-2 for cancer-variant pathogenicity classification in the low-data regime?",
+  "provenance": {
+    "clinvar_release": "2026-07-06",
+    "clinvar_2022_archive_for_movers": "20220709",
+    "reference_genome": "Ensembl GRCh38 primary_assembly, release 116",
+    "cancer_gene_source": "COSMIC Cancer Gene Census v104 (Tier 1 + Tier 2)",
+    "oncokb": "excluded by design (licence forbids ML training)"
+  },
+  "processing": {
+    "window_bp": 1024,
+    "variant_offset": 512,
+    "representation": "reference window + offset; alt derived at tokenization",
+    "coordinate_gate": "FASTA base == VCF REF verified, 0 mismatches",
+    "multi_cgc_gene_variants_dropped": 31,
+    "split": "gene-disjoint (no gene straddles splits; assertion-verified)",
+    "test_selection": "top-40 mover-genes by reclassified-VUS count (K=40, deterministic)",
+    "hard_eval": "reclassified VUS: uncertain in 2022 -> confident P/B in 2026, test-side only"
+  },
+  "splits": {
+    "train": {
+      "genes": 417,
+      "variants": 33044,
+      "pos": 5653,
+      "neg": 27391,
+      "movers": 458
+    },
+    "val": {
+      "genes": 172,
+      "variants": 10647,
+      "pos": 781,
+      "neg": 9866,
+      "movers": 119
+    },
+    "test": {
+      "genes": 40,
+      "variants": 48328,
+      "pos": 9284,
+      "neg": 39044,
+      "movers": 1216
+    }
+  },
+  "hard_eval_set": {
+    "n": 1216,
+    "pos": 284,
+    "neg": 932
+  },
+  "known_issues": {
+    "val_class_ratio": "0.073 positive (benign-skewed, lean for threshold tuning) \u2014 REBALANCE in Phase 3"
+  },
+  "columns": {
+    "variation_id": "object",
+    "chrom": "object",
+    "pos": "int64",
+    "ref": "object",
+    "alt": "object",
+    "label": "int64",
+    "clnsig": "object",
+    "clnrevstat": "object",
+    "cgc_gene_ids": "object",
+    "cgc_symbols": "object",
+    "cgc_tiers": "object",
+    "all_gene_ids": "object",
+    "mc": "object",
+    "ref_window": "object",
+    "offset": "int64",
+    "win_len": "int64",
+    "is_hard_test": "bool",
+    "gene": "object",
+    "split": "object",
+    "hard_eval": "bool"
+  },
+  "files": {
+    "gene_splits.csv": {
+      "bytes": 14902,
+      "md5": "5daf15e8f2b3009e2d0c68dc2846e6de"
+    },
+    "variant_windows_1024_split.parquet": {
+      "bytes": 11673464,
+      "md5": "fa17129eb4ca6f0fd2c74df737ae5e8f"
+    }
+  },
+  "licensing": "PRIVATE ONLY. Derived via COSMIC CGC filter; COSMIC forbids redistribution. Do not make public. Sequences derived from public ClinVar + Ensembl.",
+  "version": "v2",
+  "split_summary": {
+    "train": {
+      "genes": 434,
+      "variants": 37241,
+      "positives": 5309,
+      "pos_ratio": 0.1426
+    },
+    "val": {
+      "genes": 155,
+      "variants": 6450,
+      "positives": 1125,
+      "pos_ratio": 0.1744
+    },
+    "test": {
+      "genes": 40,
+      "variants": 48328,
+      "positives": 9284,
+      "pos_ratio": 0.1921
+    }
+  },
+  "rebalance_note": "v2: validation set rebalanced toward the natural positive ratio (7.3% -> 17.4%) for stable max-MCC threshold selection. Two-direction whole-gene reassignment: 9 positive-enriched genes moved train->val, 26 benign-skewed genes moved val->train. Test split byte-frozen and identical to v1. Gene-disjointness preserved."
+}
