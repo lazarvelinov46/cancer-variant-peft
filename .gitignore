@@ -4,6 +4,8 @@
 *.fai
 *.tsv
 data/
+!data/dataset_card_v2.json
+!data/gene_splits_v2.csv
 checkpoints/
 *.ckpt
 *.safetensors
@@ -16,3 +18,4 @@ results/runs/*/val_logits_step0.npz
 results/runs/shared/*
 !results/runs/*/
 !results/runs/*/metrics.json
+!results/runs/*/history.json
