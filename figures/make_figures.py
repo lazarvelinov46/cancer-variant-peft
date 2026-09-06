@@ -530,8 +530,94 @@ def fig2():
     save(fig, "fig2_clustered_ci")
 
 
+# --- F3: cost inversion ----------------------------------------------------
+def fig3():
+    panels = [
+        ("Trainable\nparameters", "parameters",
+         COST["trainable_full"], COST["trainable_lora"], True, "{:.0f}x fewer"),
+        ("Training\ntime per step", "ms / step",
+         MS.ms_full.mean(), MS.ms_lora.mean(), False, "{:+.1f}%"),
+        ("Peak\nGPU memory", "GB",
+         GB.gb_full.mean(), GB.gb_lora.mean(), False, "{:+.1f}%"),
+        ("Inference\nthroughput", "sequences / s",
+         COST["seq_full"], COST["seq_lora"], False, "{:+.1f}%"),
+    ]
+
+    fig, axes = plt.subplots(1, 4, figsize=(7.4, 3.4))
+    for axi, (title, unit, vf, vl, logy, fmt) in zip(axes, panels):
+        axi.bar([0, 1], [vf, vl], 0.6,
+                color=[SYS_COLOR["S3 full FT"], SYS_COLOR["S4 LoRA r=16"]],
+                edgecolor="white", linewidth=0.4)
+        axi.set_xticks([0, 1])
+        axi.set_xticklabels(["full FT", "LoRA"])
+        axi.set_title(title, fontsize=9, pad=10)
+        axi.set_ylabel(unit, fontsize=8)
+        axi.grid(axis="y")
+        if logy:
+            axi.set_yscale("log")
+            axi.set_ylim(1e6, 5e8)
+            note = fmt.format(vf / vl)
+            for xi, v in zip([0, 1], [vf, vl]):
+                axi.annotate(f"{v/1e6:.1f}M", xy=(xi, v), xytext=(0, 3),
+                             textcoords="offset points", fontsize=7, ha="center")
+        else:
+            axi.set_ylim(0, max(vf, vl) * 1.30)
+            note = fmt.format(100 * (vl / vf - 1))
+            for xi, v in zip([0, 1], [vf, vl]):
+                axi.annotate(f"{v:,.0f}" if v > 10 else f"{v:.2f}",
+                             xy=(xi, v), xytext=(0, 3),
+                             textcoords="offset points", fontsize=7, ha="center")
+        axi.annotate(note, xy=(0.5, 0.93), xycoords="axes fraction",
+                     ha="center", fontsize=8, fontweight="bold",
+                     color=CB["vermillion"])
+
+    fig.suptitle("LoRA trains 37x fewer parameters and costs no less", y=0.99)
+    fig.text(0.5, 0.005,
+             f"training panels: paired grid runs (time n={COST['ms_n']}, "
+             f"memory n={COST['gb_n']} matched-step pairs); "
+             f"inference: full test set, {META['n']:,} variants",
+             ha="center", fontsize=7, color=CB["grey"])
+    fig.subplots_adjust(top=0.78, bottom=0.16, wspace=0.55)
+    save(fig, "fig3_cost_inversion")
+
+
+# --- F4: paired grid outcomes ---------------------------------------------
+def fig4():
+    NC = dict(zip(GRID_N, [CB["blue"], CB["skyblue"], CB["green"],
+                           CB["orange"], CB["vermillion"]]))
+    fig, axi = plt.subplots(figsize=(4.6, 4.4))
+
+    lim = (0.60, 0.78)
+    axi.plot(lim, lim, color=CB["black"], lw=0.9, zorder=1)
+    axi.annotate("LoRA better", xy=(0.615, 0.725), fontsize=7, color=CB["grey"])
+    axi.annotate("full FT better", xy=(0.700, 0.615), fontsize=7, color=CB["grey"])
+
+    for N in GRID_N:
+        sub = P.xs(N, level="N")
+        axi.plot(sub.auc_full, sub.auc_lora, "o", ms=6, color=NC[N],
+                 markeredgecolor="white", markeredgewidth=0.6,
+                 label=f"N={N:,}", zorder=3)
+
+    axi.set_xlim(*lim)
+    axi.set_ylim(*lim)
+    axi.set_aspect("equal")
+    axi.set_xlabel("full fine-tuning, validation AUC")
+    axi.set_ylabel("LoRA r=16, validation AUC")
+    axi.set_title("15 paired runs, 5 sizes x 3 seeds")
+    axi.grid(axis="both")
+    axi.legend(fontsize=7, loc="lower right")
+
+    axi.annotate(
+        f"pooled paired difference\n{GRID_STAT['mean']:+.4f} "
+        f"(95% CI {GRID_STAT['lo']:+.4f} to {GRID_STAT['hi']:+.4f})",
+        xy=(0.03, 0.97), xycoords="axes fraction", va="top", fontsize=7.5)
+    save(fig, "fig4_grid_paired")
+
+
 fig1()
 fig2()
+fig3()
+fig4()
 
 banner("WRITTEN")
 for p in WRITTEN:
