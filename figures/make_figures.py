@@ -446,29 +446,51 @@ STRAT_LABEL = {"overall": "Overall\n48,328", "LoF": "Loss of\nfunction",
 # --- F1: AUC by system and stratum ----------------------------------------
 def fig1():
     piv = MX.pivot(index="stratum", columns="system", values="auc").loc[STRATA]
-    n_by = MX.groupby("stratum", observed=True).n.first().loc[STRATA]
+    base = MX.groupby("stratum", observed=True)[["n", "pos"]].first().loc[STRATA]
+    prev = 100 * base.pos / base.n
 
-    fig, ax = plt.subplots(figsize=(7.4, 3.6))
+    fig, (ax, axp) = plt.subplots(
+        2, 1, sharex=True, figsize=(7.4, 5.0),
+        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.20})
+
     x = np.arange(len(STRATA))
     w = 0.15
     for i, s in enumerate(SYSTEMS):
-        ax.bar(x + (i - 2) * w, piv[s].values, w, label=SYS_SHORT[s].replace("\n", " "),
+        ax.bar(x + (i - 2) * w, piv[s].values, w,
+               label=SYS_SHORT[s].replace("\n", " "),
                color=SYS_COLOR[s], edgecolor="white", linewidth=0.4)
 
     ax.axhline(0.5, color=CB["vermillion"], lw=0.9, ls="--", zorder=1)
     ax.annotate("chance", xy=(len(STRATA) - 0.45, 0.5), xytext=(0, 3),
-                textcoords="offset points", fontsize=7, color=CB["vermillion"],
-                ha="right")
+                textcoords="offset points", fontsize=7,
+                color=CB["vermillion"], ha="right")
+    for xi, s in zip(x, STRATA):
+        if s in ("LoF", "missense", "silent/non-coding"):
+            ax.annotate("0.500\nby construction", xy=(xi - 2 * w, 0.5),
+                        xytext=(0, -14), textcoords="offset points",
+                        fontsize=6, ha="center", va="top", color=CB["grey"])
 
-    ax.set_xticks(x)
-    ax.set_xticklabels([f"{STRAT_LABEL[s]}\nn={n_by[s]:,}"
-                        if s != "overall" else STRAT_LABEL[s] for s in STRATA])
-    ax.set_ylim(0.45, 1.02)
+    ax.set_ylim(0.42, 1.02)
     ax.set_ylabel("ROC AUC")
-    ax.set_title("Test-set discrimination by consequence stratum")
+    ax.set_title("The rule discriminates between strata, not within them")
     ax.grid(axis="y")
-    ax.legend(ncol=5, loc="upper center", bbox_to_anchor=(0.5, -0.22),
-              columnspacing=1.2, handlelength=1.2)
+
+    axp.bar(x, prev.values, 0.55, color=CB["purple"],
+            edgecolor="white", linewidth=0.4)
+    for xi, v in zip(x, prev.values):
+        axp.annotate(f"{v:.1f}%", xy=(xi, v), xytext=(0, 2),
+                     textcoords="offset points", fontsize=7, ha="center")
+    axp.set_ylim(0, 118)
+    axp.set_yticks([0, 50, 100])
+    axp.set_ylabel("% pathogenic")
+    axp.grid(axis="y")
+    axp.set_xticks(x)
+    axp.set_xticklabels([f"{STRAT_LABEL[s]}\nn={base.n[s]:,}" for s in STRATA])
+
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, ncol=5, loc="lower center",
+               bbox_to_anchor=(0.5, -0.02), columnspacing=1.2, handlelength=1.2)
+    fig.subplots_adjust(bottom=0.22)
     save(fig, "fig1_auc_by_stratum")
 
 
