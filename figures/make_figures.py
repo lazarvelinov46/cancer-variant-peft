@@ -11,6 +11,9 @@ import json
 import sys
 import numpy as np
 import pandas as pd
+import sklearn
+from sklearn.metrics import (roc_auc_score, average_precision_score,
+                             matthews_corrcoef)
 
 ROOT    = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results"
@@ -50,6 +53,8 @@ NEEDED = {
     "meta":       RESULTS / "test_meta.json",
     "splits":     DATA / "gene_splits_v2.csv",
     "card":       DATA / "dataset_card_v2.json",
+    "val_meta":   RESULTS / "emb_val_1024bp.npz",
+    "thresholds": RESULTS / "test_thresholds.json",
 }
 for k, p in NEEDED.items():
     ok = p.exists()
@@ -439,15 +444,166 @@ print("\n  Table 1 — dataset splits (gene-disjoint)")
 print(write_table(T1, "table1_splits"))
 
 # --- Table 2: overall test results ----------------------------------------
-T2 = (OV.reset_index()[["system", "auc", "mcc", "auprc", "f1"]]
+T2 = (OV.reset_index()[["system", "auc", "mcc", "auprc", "f1",
+                        "precision", "recall"]]
         .rename(columns={"system": "System", "auc": "AUC", "mcc": "MCC",
-                         "auprc": "AUPRC", "f1": "F1"}))
+                         "auprc": "AUPRC", "f1": "F1",
+                         "precision": "Precision", "recall": "Recall"}))
 T2["System"] = T2.System.astype(str)
 print("\n  Table 2 — test set, all systems, overall stratum "
       f"({int(OV.n.iloc[0]):,} variants, {int(OV.pos.iloc[0]):,} pathogenic)")
 print(write_table(T2, "table2_test_overall",
-                  {"AUC": "{:.4f}", "MCC": "{:.4f}",
-                   "AUPRC": "{:.4f}", "F1": "{:.4f}"}))
+                  {"AUC": "{:.4f}", "MCC": "{:.4f}", "AUPRC": "{:.4f}",
+                   "F1": "{:.4f}", "Precision": "{:.4f}", "Recall": "{:.4f}"}))
+
+# --- Table 4: test AUC by stratum ------------------------------------------
+STRATA_T4 = ["LoF", "missense", "silent/non-coding", "hard-eval"]
+COL_T4 = {"LoF": "LoF", "missense": "Missense",
+          "silent/non-coding": "Silent / non-coding",
+          "hard-eval": "Hard-eval"}
+
+S4 = MX[MX.stratum.isin(STRATA_T4)]
+check(len(S4) == len(SYSTEMS) * len(STRATA_T4),
+      f"stratum matrix has {len(S4)} rows, expected {len(SYSTEMS) * len(STRATA_T4)}")
+
+T4 = S4.pivot(index="system", columns="stratum", values="auc")
+T4 = T4.reindex(index=SYSTEMS, columns=STRATA_T4)
+check(not T4.isna().any().any(), "missing system x stratum cells in test_matrix")
+
+# the rule is constant within a stratum, so its AUC is 0.5 by construction
+check((T4.loc["S1 consequence rule"] == 0.5).all(),
+      f"rule is not 0.5 in every stratum: {T4.loc['S1 consequence rule'].to_dict()}")
+# the composite is a monotone transform of full FT within a stratum
+check(np.allclose(T4.loc["S5 composite"], T4.loc["S3 full FT"], atol=1e-9),
+      "composite differs from full FT within a stratum — it should not")
+
+T4 = T4.drop(index=["S1 consequence rule", "S5 composite"])
+
+N4 = S4.drop_duplicates("stratum").set_index("stratum").n
+T4.columns = [f"{COL_T4[s]}\n(n = {int(N4[s]):,})" for s in T4.columns]
+T4 = T4.reset_index().rename(columns={"system": "System"})
+T4["System"] = T4.System.astype(str)
+
+print("\n  Table 4 — test AUC by stratum")
+print(f"    rule = 0.5000 in every stratum (constant score within a stratum); "
+      f"composite identical to full FT (monotone transform) — both omitted")
+print(write_table(T4, "table4_test_by_stratum",
+                  {c: "{:.4f}" for c in T4.columns if c != "System"}))
+
+# --- Table 3: validation, five systems ------------------------------------
+VAL_RUNS = {"probe": ("step0_fulldata_n37241_s0", "val_logits_step0.npz", "p_s0"),
+            "full":  ("full_lr2e-05_n37241_s0_fd_nopatience",
+                      "val_logits_top3.npz", "p_s3200"),
+            "lora":  ("lora_r16_lr0.0001_n37241_s0_fulldata",
+                      "val_logits_top3.npz", "p_s3000")}
+
+LOF_SO = {"SO:0001587", "SO:0001575", "SO:0001574"}   # nonsense, splice donor/acceptor
+MIS_SO = {"SO:0001583", "SO:0001582"}                 # missense, initiator codon
+
+EXP_STRATA = {"LoF": (582, 575), "missense": (1514, 535),
+              "silent/non-coding": (4354, 15)}        # nb10 D4
+
+
+def _stratum(s):
+    """nb10 D4 / nb11 T5, verbatim."""
+    ts = {t.split("|")[0] for t in str(s).split(",") if t}
+    if ts & LOF_SO:
+        return "LoF"
+    if ts & MIS_SO:
+        return "missense"
+    return "silent/non-coding"
+
+
+def table3():
+    n0 = len(FAIL)
+
+    # only `label` and `mc` are decompressed; the two 768-d arrays are untouched
+    _z = np.load(NEEDED["val_meta"], allow_pickle=True)
+    VF = pd.DataFrame({"label": _z["label"].astype(int), "mc": _z["mc"]})
+    del _z
+    check(len(VF) == 6450, f"emb_val has {len(VF)} rows, expected 6,450")
+    y = VF.label.values
+    check(int(y.sum()) == 1125, f"val positives {int(y.sum())}, expected 1,125")
+
+    strat = np.array([_stratum(s) for s in VF.mc])
+    counts = {k: (int((strat == k).sum()), int(y[strat == k].sum()))
+              for k in EXP_STRATA}
+    check(counts == EXP_STRATA,
+          f"tier mapping gives {counts}, does not reproduce nb10 D4 {EXP_STRATA}")
+    tier = np.select([strat == "LoF", strat == "missense"], [2.0, 1.0], 0.0)
+
+    P, REF = {}, {}
+    for arm, (rid, fn, key) in VAL_RUNS.items():
+        z = np.load(RUNS / rid / fn)
+        check(key in z.files, f"{rid}/{fn}: {key} absent, has {list(z.files)}")
+        check(np.array_equal(z["label"].astype(int), y),
+              f"{rid}: label order differs from emb_val — rows are misaligned")
+        P[arm] = z[key]
+        REF[arm] = json.loads((RUNS / rid / "metrics.json").read_text())
+
+    thr_rule = json.loads(NEEDED["thresholds"].read_text())["thr"]["rule"]
+    SPEC = [("S1 consequence rule", tier,       thr_rule,          None),
+            ("S2 frozen probe",     P["probe"], REF["probe"]["thr"], "probe"),
+            ("S3 full FT",          P["full"],  REF["full"]["thr"],  "full"),
+            ("S4 LoRA r=16",        P["lora"],  REF["lora"]["thr"],  "lora"),
+            ("S5 composite",        2.0 * tier + P["full"], None,    None)]
+
+    rows = []
+    for name, p, thr, ref in SPEC:
+        r = {"system": name, "n": len(y), "pos": int(y.sum()),
+             "auc": float(roc_auc_score(y, p)),
+             "auprc": float(average_precision_score(y, p)),
+             "thr": None if thr is None else float(thr)}
+        if thr is None:                                   # S5: ranking only
+            r.update(mcc=np.nan, f1=np.nan, precision=np.nan, recall=np.nan)
+        else:
+            yh = (p >= thr).astype(int)
+            tp = int(((yh == 1) & (y == 1)).sum())
+            fp = int(((yh == 1) & (y == 0)).sum())
+            fn = int(((yh == 0) & (y == 1)).sum())
+            prec = tp / (tp + fp) if tp + fp else 0.0
+            rec = tp / (tp + fn) if tp + fn else 0.0
+            r.update(mcc=float(matthews_corrcoef(y, yh)),
+                     f1=2 * prec * rec / (prec + rec) if prec + rec else 0.0,
+                     precision=prec, recall=rec)
+        if ref:                    # recomputed must equal what the run stored
+            m = REF[ref]
+            for k in ("auc", "mcc", "auprc", "f1", "precision", "recall"):
+                check(abs(r[k] - m[k]) < 1e-6,
+                      f"{name}: recomputed {k} {r[k]:.6f} "
+                      f"!= metrics.json {m[k]:.6f}")
+        rows.append(r)
+
+    V = pd.DataFrame(rows)
+    V["system"] = pd.Categorical(V.system, SYSTEMS, ordered=True)
+    V = V.sort_values("system")
+
+    ix = V.set_index("system")
+    check(abs(ix.loc["S3 full FT", "thr"] - META["thr_full"]) < 1e-9,
+          "full-FT validation threshold differs from the one frozen for test")
+    check(abs(ix.loc["S4 LoRA r=16", "thr"] - META["thr_lora"]) < 1e-9,
+          "LoRA validation threshold differs from the one frozen for test")
+
+    if len(FAIL) > n0:
+        print("\n".join(FAIL[n0:]))
+        sys.exit(1)
+
+    print(f"  strata: " + " | ".join(f"{k} {v[0]:,}/{v[1]}"
+                                     for k, v in counts.items()))
+    print(f"  checkpoints: probe step 0 | full step {REF['full']['step']:,} "
+          f"| LoRA step {REF['lora']['step']:,}")
+
+    T3 = V[["system", "auc", "mcc", "auprc", "f1", "thr"]].copy()
+    T3.columns = ["System", "AUC", "MCC", "AUPRC", "F1", "Threshold"]
+    return write_table(T3, "table3_validation",
+                       floatfmt={"AUC": "{:.4f}", "MCC": "{:.4f}",
+                                 "AUPRC": "{:.4f}", "F1": "{:.4f}",
+                                 "Threshold": "{:.6f}"})
+
+
+print(table3())
+
+
 
 # ==========================================================================
 # 9. FIGURES
