@@ -16,6 +16,10 @@ results/runs/*/val_logits_top3.npz
 results/runs/*/val_logits.npz
 results/runs/*/val_logits_step0.npz
 results/runs/shared/*
+results/emb_val_1024bp.npz
 !results/runs/*/
 !results/runs/*/metrics.json
 !results/runs/*/history.json
+!results/runs/step0_fulldata_n37241_s0/val_logits_step0.npz
+!results/runs/full_lr2e-05_n37241_s0_fd_nopatience/val_logits_top3.npz
+!results/runs/lora_r16_lr0.0001_n37241_s0_fulldata/val_logits_top3.npz

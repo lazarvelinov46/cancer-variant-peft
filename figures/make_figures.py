@@ -157,6 +157,16 @@ check(META["pos"] == int(OV.pos.iloc[0]), "meta pos disagrees with test_matrix")
 slow = 100 * (RATE["full"] - RATE["lora"]) / RATE["full"]
 print(f"  inference: " + " | ".join(f"{k} {v:.1f}" for k, v in RATE.items()) + " seq/s")
 print(f"  LoRA is {slow:.1f}% slower than full FT at inference")
+MERGE = json.loads((NEEDED["meta"].parent / "inference_merge.json").read_text())
+check(abs(MERGE["full_drift_pct"]) < 5,
+      f"full FT drifted {MERGE['full_drift_pct']:+.1f}% across the T3C session")
+check(abs(MERGE["seq_lora_unmerged"] / MERGE["seq_full"]
+          - RATE["lora"] / RATE["full"]) < 0.03,
+      "T3C live-LoRA ratio disagrees with T4")
+print(f"  T3C: merged {MERGE['seq_lora_merged']:.0f} seq/s "
+      f"({100*(MERGE['seq_lora_merged']/MERGE['seq_full']-1):+.1f}% vs full FT)"
+      f" | merging recovers "
+      f"{100*(MERGE['seq_lora_merged']/MERGE['seq_lora_unmerged']-1):+.1f}%")
 print(f"  frozen thresholds: full {META['thr_full']:.4f} @ step {META['step_full']}"
       f" | LoRA {META['thr_lora']:.4f} @ step {META['step_lora']}")
 
@@ -316,7 +326,12 @@ COST = {"trainable_full": n_full, "trainable_lora": n_lora,
         "ms_n": int(len(MS)),
         "gb_delta": float(dgb.mean()), "gb_sd": float(dgb.std(ddof=1)),
         "gb_n": int(len(GB)),
-        "seq_full": RATE["full"], "seq_lora": RATE["lora"]}
+        "seq_full": RATE["full"], "seq_lora": RATE["lora"],
+        "seq_full_t3c": MERGE["seq_full"],
+        "seq_lora_live": MERGE["seq_lora_unmerged"],
+        "seq_lora_merged": MERGE["seq_lora_merged"],
+        "gb_inf_full": MERGE["gb_full"],
+        "gb_inf_lora_merged": MERGE["gb_lora_merged"]}
 GRID_STAT = {"mean": float(m), "sd": float(sd), "se": float(se),
              "lo": float(CI_LO), "hi": float(CI_HI), "n": int(len(d))}
 # --------------------------------------------------------------------------
@@ -534,48 +549,68 @@ def fig2():
 def fig3():
     panels = [
         ("Trainable\nparameters", "parameters",
-         COST["trainable_full"], COST["trainable_lora"], True, "{:.0f}x fewer"),
+         [("full FT", COST["trainable_full"]), ("LoRA", COST["trainable_lora"])],
+         True, "{:.0f}x fewer"),
         ("Training\ntime per step", "ms / step",
-         MS.ms_full.mean(), MS.ms_lora.mean(), False, "{:+.1f}%"),
-        ("Peak\nGPU memory", "GB",
-         GB.gb_full.mean(), GB.gb_lora.mean(), False, "{:+.1f}%"),
+         [("full FT", MS.ms_full.mean()), ("LoRA", MS.ms_lora.mean())],
+         False, "{:+.1f}%"),
+        ("Peak GPU memory\n(training)", "GB",
+         [("full FT", GB.gb_full.mean()), ("LoRA", GB.gb_lora.mean())],
+         False, "{:+.1f}%"),
         ("Inference\nthroughput", "sequences / s",
-         COST["seq_full"], COST["seq_lora"], False, "{:+.1f}%"),
+         [("full FT", COST["seq_full_t3c"]),
+          ("LoRA\nlive", COST["seq_lora_live"]),
+          ("LoRA\nmerged", COST["seq_lora_merged"])],
+         False, None),
     ]
 
     fig, axes = plt.subplots(1, 4, figsize=(7.4, 3.4))
-    for axi, (title, unit, vf, vl, logy, fmt) in zip(axes, panels):
-        axi.bar([0, 1], [vf, vl], 0.6,
-                color=[SYS_COLOR["S3 full FT"], SYS_COLOR["S4 LoRA r=16"]],
-                edgecolor="white", linewidth=0.4)
-        axi.set_xticks([0, 1])
-        axi.set_xticklabels(["full FT", "LoRA"])
+    for axi, (title, unit, bars, logy, fmt) in zip(axes, panels):
+        labels = [b[0] for b in bars]
+        vals = [b[1] for b in bars]
+        n = len(bars)
+        cols = [SYS_COLOR["S3 full FT"]] + [SYS_COLOR["S4 LoRA r=16"]] * (n - 1)
+        x = np.arange(n)
+        rects = axi.bar(x, vals, 0.6, color=cols, edgecolor="white", linewidth=0.4)
+        if n == 3:
+            rects[2].set_hatch("//")
+            rects[2].set_edgecolor("white")
+
+        axi.set_xticks(x)
+        axi.set_xticklabels(labels, fontsize=7 if n == 3 else 8)
         axi.set_title(title, fontsize=9, pad=10)
         axi.set_ylabel(unit, fontsize=8)
         axi.grid(axis="y")
+
         if logy:
             axi.set_yscale("log")
             axi.set_ylim(1e6, 5e8)
-            note = fmt.format(vf / vl)
-            for xi, v in zip([0, 1], [vf, vl]):
+            note = fmt.format(vals[0] / vals[1])
+            for xi, v in zip(x, vals):
                 axi.annotate(f"{v/1e6:.1f}M", xy=(xi, v), xytext=(0, 3),
                              textcoords="offset points", fontsize=7, ha="center")
         else:
-            axi.set_ylim(0, max(vf, vl) * 1.30)
-            note = fmt.format(100 * (vl / vf - 1))
-            for xi, v in zip([0, 1], [vf, vl]):
+            axi.set_ylim(0, max(vals) * (1.42 if n == 3 else 1.30))
+            for xi, v in zip(x, vals):
                 axi.annotate(f"{v:,.0f}" if v > 10 else f"{v:.2f}",
                              xy=(xi, v), xytext=(0, 3),
                              textcoords="offset points", fontsize=7, ha="center")
-        axi.annotate(note, xy=(0.5, 0.93), xycoords="axes fraction",
-                     ha="center", fontsize=8, fontweight="bold",
+            if n == 3:
+                note = (f"live {100*(vals[1]/vals[0]-1):+.1f}%\n"
+                        f"merged {100*(vals[2]/vals[0]-1):+.1f}%")
+            else:
+                note = fmt.format(100 * (vals[1] / vals[0] - 1))
+
+        axi.annotate(note, xy=(0.5, 0.95), xycoords="axes fraction",
+                     ha="center", va="top", fontsize=8, fontweight="bold",
                      color=CB["vermillion"])
 
-    fig.suptitle("LoRA trains 37x fewer parameters and costs no less", y=0.99)
+    fig.suptitle("LoRA trains 37x fewer parameters and trains no faster", y=0.99)
     fig.text(0.5, 0.005,
              f"training panels: paired grid runs (time n={COST['ms_n']}, "
-             f"memory n={COST['gb_n']} matched-step pairs); "
-             f"inference: full test set, {META['n']:,} variants",
+             f"memory n={COST['gb_n']} matched-step pairs); inference: full test "
+             f"set, {META['n']:,} variants, one session, warm-up discarded, "
+             f"full FT drift {MERGE['full_drift_pct']:+.1f}%",
              ha="center", fontsize=7, color=CB["grey"])
     fig.subplots_adjust(top=0.78, bottom=0.16, wspace=0.55)
     save(fig, "fig3_cost_inversion")

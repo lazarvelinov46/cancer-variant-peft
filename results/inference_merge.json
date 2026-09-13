@@ -1,0 +1,13 @@
+{
+  "set": "test",
+  "n_seq": 96656,
+  "seq_full_first": 169.0937510642861,
+  "seq_full_last": 169.6051920530273,
+  "seq_full": 169.34947155865672,
+  "seq_lora_unmerged": 128.28454431585672,
+  "seq_lora_merged": 168.3206025806254,
+  "gb_full": 2.1307387351989746,
+  "gb_lora_unmerged": 2.0814361572265625,
+  "gb_lora_merged": 1.9112257957458496,
+  "full_drift_pct": 0.3024600173112013
+}
