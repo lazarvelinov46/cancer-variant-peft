@@ -664,6 +664,62 @@ def fig1():
     fig.subplots_adjust(bottom=0.22)
     save(fig, "fig1_auc_by_stratum")
 
+def fig1a():
+    """Prevalence by stratum — a property of the data (Chapter 3)."""
+    base = MX.groupby("stratum", observed=True)[["n", "pos"]].first().loc[STRATA]
+    prev = 100 * base.pos / base.n
+
+    fig, ax = plt.subplots(figsize=(7.4, 2.6))
+    x = np.arange(len(STRATA))
+    ax.bar(x, prev.values, 0.55, color=CB["purple"],
+           edgecolor="white", linewidth=0.4)
+    for xi, v in zip(x, prev.values):
+        ax.annotate(f"{v:.1f}%", xy=(xi, v), xytext=(0, 2),
+                    textcoords="offset points", fontsize=7, ha="center")
+    ax.set_ylim(0, 118)
+    ax.set_yticks([0, 50, 100])
+    ax.set_ylabel("% pathogenic")
+    ax.grid(axis="y")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{STRAT_LABEL[s]}\nn={base.n[s]:,}" for s in STRATA])
+    fig.subplots_adjust(bottom=0.26)
+    save(fig, "fig1a_prevalence_by_stratum")
+
+
+def fig1b():
+    """AUC by system and stratum — a result (Chapter 5)."""
+    piv = MX.pivot(index="stratum", columns="system", values="auc").loc[STRATA]
+    base = MX.groupby("stratum", observed=True)[["n", "pos"]].first().loc[STRATA]
+
+    fig, ax = plt.subplots(figsize=(7.4, 4.0))
+    x = np.arange(len(STRATA))
+    w = 0.15
+    for i, s in enumerate(SYSTEMS):
+        ax.bar(x + (i - 2) * w, piv[s].values, w,
+               label=SYS_SHORT[s].replace("\n", " "),
+               color=SYS_COLOR[s], edgecolor="white", linewidth=0.4)
+
+    ax.axhline(0.5, color=CB["vermillion"], lw=0.9, ls="--", zorder=1)
+    ax.annotate("chance", xy=(len(STRATA) - 0.45, 0.5), xytext=(0, 3),
+                textcoords="offset points", fontsize=7,
+                color=CB["vermillion"], ha="right")
+    for xi, s in zip(x, STRATA):
+        if s in ("LoF", "missense", "silent/non-coding"):
+            ax.annotate("0.500\nby construction", xy=(xi - 2 * w, 0.5),
+                        xytext=(0, -14), textcoords="offset points",
+                        fontsize=6, ha="center", va="top", color=CB["grey"])
+
+    ax.set_ylim(0.42, 1.02)
+    ax.set_ylabel("ROC AUC")
+    ax.grid(axis="y")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{STRAT_LABEL[s]}\nn={base.n[s]:,}" for s in STRATA])
+
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, ncol=5, loc="lower center",
+               bbox_to_anchor=(0.5, -0.02), columnspacing=1.2, handlelength=1.2)
+    fig.subplots_adjust(bottom=0.26)
+    save(fig, "fig1b_auc_by_stratum")
 
 # --- F2: gene-clustered confidence intervals ------------------------------
 def fig2():
@@ -806,6 +862,8 @@ def fig4():
 
 
 fig1()
+fig1a()
+fig1b()
 fig2()
 fig3()
 fig4()
